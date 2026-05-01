@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Writer Pro - Ultra Stable</title>
+    <style>
+        :root { --bg: #ffffff; --text: #2c2c2c; --ui: #a0a0a0; --sidebar-bg: #fcfcfc; --accent: #000; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+
+        body {
+            font-family: -apple-system, system-ui, sans-serif;
+            margin: 0; background: var(--bg); color: var(--text);
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+
+        /* --- Tela de Abertura --- */
+        #splash {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg); z-index: 5000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s;
+        }
+        #splash h1 { 
+            font-weight: 300; letter-spacing: 4px; font-size: 18px; 
+            color: #2c2c2c; margin: 0; text-transform: uppercase;
+            animation: fadeIn 0.5s ease-out;
+        }
+        #splash .loader-line {
+            width: 40px; height: 1px; background: #eee; margin-top: 15px; overflow: hidden;
+        }
+        #splash .loader-line::after {
+            content: ''; display: block; width: 100%; height: 100%; background: #2c2c2c;
+            animation: loading 0.8s infinite ease-in-out;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes loading { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+        /* --- Overlay de Bloqueio --- */
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: transparent; z-index: 1050; display: none;
+        }
+        #overlay.visible { display: block; }
+
+        /* --- Layout --- */
+        .main-container { display: flex; flex: 1; overflow: hidden; width: 100%; }
+
+        /* --- Sidebars --- */
+        #sidebar, #style-sidebar {
+            width: 0; background: var(--sidebar-bg);
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; flex-direction: column; overflow: hidden; white-space: nowrap;
+            z-index: 1100;
+        }
+        #sidebar.open { width: 260px; border-right: 1px solid #eee; }
+        #style-sidebar.open { width: 260px; border-left: 1px solid #eee; }
+        
+        .sidebar-header { padding: 30px 20px 10px; display: flex; justify-content: space-between; align-items: center; }
+        .sidebar-header span { font-size: 10px; font-weight: bold; letter-spacing: 1px; color: var(--ui); text-transform: uppercase; }
+        .btn-add { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--ui); padding: 5px; }
+        
+        .sidebar-label { 
+            padding: 20px 20px 8px 0; 
+            margin: 0 20px 12px 20px;
+            font-size: 9px; 
+            font-weight: 800; 
+            color: #bbb; 
+            text-transform: uppercase; 
+            letter-spacing: 1.5px; 
+            border-bottom: 2px solid #eee;
+        }
+
+        #chapter-list, .sidebar-content { flex: 1; overflow-y: auto; padding: 10px 0; }
+        
+        .chapter-item {
+            padding: 12px 20px; font-size: 13px; color: #666; cursor: pointer;
+            display: flex; justify-content: space-between; transition: 0.2s; align-items: center;
+            position: relative;
+        }
+        .chapter-item:hover { background: #f0f0f0; }
+        .chapter-item.active { color: #000; font-weight: bold; background: #f0f0f0; }
+        
+        .chapter-title-edit {
+            flex: 1; padding: 2px 5px; border-radius: 4px;
+            overflow: hidden; text-overflow: ellipsis; margin-right: 10px;
+        }
+        .chapter-title-edit:focus { background: #fff; box-shadow: 0 0 0 1px #ddd; color: #000; outline: none; }
+
+        .btn-delete-cap { background: none; border: none; color: #ccc; font-size: 14px; cursor: pointer; padding: 5px; opacity: 0; transition: opacity 0.2s; }
+        .chapter-item:hover .btn-delete-cap { opacity: 1; }
+        .btn-delete-cap:hover { color: #ff4444; }
+
+        /* --- Interface --- */
+        .toolbar { 
+            background: var(--bg); padding: 30px 20px 15px 20px; 
+            display: flex; justify-content: center; align-items: center; 
+            z-index: 1000; transition: all 0.4s ease; max-height: 80px;
+        }
+        
+        .ui-hidden { opacity: 0 !important; pointer-events: none !important; padding-top: 0 !important; padding-bottom: 0 !important; max-height: 0px !important; }
+        
+        .group { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            width: 100%; 
+            max-width: 1100px; 
+        }
+
+        .btn-save-top { 
+            appearance: none; -webkit-appearance: none; border: none; background: transparent; 
+            font-size: 11px; cursor: pointer; letter-spacing: 0.8px; text-transform: uppercase; 
+            padding: 8px 2px; margin: 0; line-height: 1.2; display: inline-block; 
+            vertical-align: middle; font-weight: bold; color: #2c2c2c; 
+            border-bottom: 3px solid #2c2c2c; 
+        }
+
+        /* --- Barra de Formato Flutuante --- */
+        #format-bar { position: fixed; display: flex; gap: 5px; z-index: 2000; background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 5px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.1s ease; }
+        .btn-format { background: transparent; border: none; width: 40px; height: 40px; font-size: 14px; color: #444; cursor: pointer; border-radius: 4px; }
+
+        /* --- Editor --- */
+        .editor-container { flex: 1; overflow-y: auto; scrollbar-width: none; }
+        .editor-container::-webkit-scrollbar { display: none; }
+
+        #editor {
+            max-width: 1100px; margin: 0 auto; width: 100%; min-height: 100%;
+            padding: 40px 15px 400px 15px;
+            text-align: justify; text-justify: inter-word; 
+            line-height: 1.8; font-size: 18px; letter-spacing: 0; 
+            hyphens: auto !important; -webkit-hyphens: auto !important;
+            hyphenate-character: "-" !important;
+            text-rendering: geometricPrecision !important;
+            font-variant-ligatures: no-common-ligatures !important;
+            word-break: normal; overflow-wrap: break-word;
+            transition: padding 0.3s ease;
+        }
+
+        #editor p, #editor div {
+            margin-top: 0;
+            margin-bottom: 0.3em;
+            text-indent: 2em;
+        }
+
+        #editor.full-space { padding-top: 10px !important; }
+
+        /* CORREÇÃO CSS: Bloqueia seleção de texto e toque longo no modo de leitura */
+        #editor.reading-mode-active { 
+            caret-color: transparent !important; 
+            user-select: none !important; 
+            -webkit-user-select: none !important; 
+            -ms-user-select: none !important;
+            -moz-user-select: none !important;
+            -webkit-touch-callout: none !important; /* Desativa menu de contexto no iOS */
+        }
+
+        /* --- Rodapé --- */
+        .footer-bar { position: fixed; bottom: 0; left: 0; width: 100%; height: 120px; background: linear-gradient(to top, var(--bg) 60%, rgba(255,255,255,0) 100%); z-index: 900; pointer-events: none; transition: opacity 0.4s ease; opacity: 0; }
+        .footer-info { position: fixed; bottom: 35px; left: 20px; font-size: 10px; color: #777; letter-spacing: 1px; z-index: 1001; }
+        .ui-visible { opacity: 1 !important; pointer-events: auto !important; }
+        .keyboard-hidden { display: none !important; }
+        #font-upload, #backup-upload { display: none; }
+    </style>
+</head>
+<body onload="initApp()">
+
+<div id="splash">
+    <h1>Writer Pro</h1>
+    <div class="loader-line"></div>
+</div>
+
+<div id="overlay" onclick="closeAllUI()"></div>
+
+<div class="toolbar" id="toolbar">
+    <div class="group">
+        <button class="btn-save-top" onclick="toggleSidebar()">NOTAS</button>
+        <button class="btn-save-top" onclick="toggleStyleSidebar()">ESTILO</button>
+        <button id="save-btn" class="btn-save-top" onclick="exportDoc()">SALVAR .DOC</button>
+    </div>
+</div>
+
+<div class="main-container">
+    <aside id="sidebar">
+        <div class="sidebar-header">
+            <span>CAPÍTULOS</span>
+            <button class="btn-add" onclick="createNewChapter()">+</button>
+        </div>
+        <div id="chapter-list"></div>
+        <div class="sidebar-label">Backup do Sistema</div>
+        <div class="chapter-item" onclick="exportBackupJSON()">Backup Geral (.json)</div>
+        <div class="chapter-item" onclick="document.getElementById('backup-upload').click()">Importar Backup</div>
+        <input type="file" id="backup-upload" accept=".json" onchange="importBackupJSON(this)">
+    </aside>
+
+    <div class="editor-container" id="scroll-area">
+        <div id="editor" contenteditable="true" spellcheck="false" oninput="onTyping()" onpaste="handlePaste(event)" lang="pt-br" xml:lang="pt-br"></div>
+    </div>
+
+    <aside id="style-sidebar">
+        <div class="sidebar-header"><span>CONFIGURAÇÕES</span></div>
+        <div class="sidebar-content">
+            <div class="sidebar-label">Fonte</div>
+            <div class="chapter-item" onmousedown="event.preventDefault(); applyStyle('fontFamily','serif')">Serifada</div>
+            <div class="chapter-item" onmousedown="event.preventDefault(); applyStyle('fontFamily','sans-serif')">Sem Serifa</div>
+            <div id="custom-font-item"></div>
+            <div class="chapter-item" onclick="document.getElementById('font-upload').click()" style="color:var(--ui)">+ Carregar Fonte</div>
+            
+            <div class="sidebar-label">Peso (Grossura)</div>
+            <div class="chapter-item" onmousedown="event.preventDefault(); applyStyle('fontWeight','300')">Fina</div>
+            <div class="chapter-item" onmousedown="event.preventDefault(); applyStyle('fontWeight','400')">Normal</div>
+            <div class="chapter-item" onmousedown="event.preventDefault(); applyStyle('fontWeight','600')">Grossa</div>
+
+            <div class="sidebar-label">Tamanho</div>
+            <div class="chapter-item" onmousedown="event.preventDefault(); applyStyle('fontSize','16px')">Pequeno (16)</div>
+            <div class="chapter-item" onmousedown="event.preventDefault(); applyStyle('fontSize','18px')">Padrão (18)</div>
+            <div class="chapter-item" onmousedown="event.preventDefault(); applyStyle('fontSize','22px')">Grande (22)</div>
+            <div class="sidebar-label">Alinhamento</div>
+            <div class="chapter-item" onmousedown="event.preventDefault(); applyStyle('textAlign','left')">Esquerda</div>
+            <div class="chapter-item" onmousedown="event.preventDefault(); applyStyle('textAlign','center')">Centro</div>
+            <div class="chapter-item" onmousedown="event.preventDefault(); applyStyle('textAlign','justify')">Justificado</div>
+        </div>
+    </aside>
+</div>
+
+<input type="file" id="font-upload" onchange="handleFontUpload(this)">
+
+<div id="format-bar">
+    <button class="btn-format" style="font-weight: bold;" onmousedown="event.preventDefault(); document.execCommand('bold'); saveData();">B</button>
+    <button class="btn-format" style="font-style: italic;" onmousedown="event.preventDefault(); document.execCommand('italic'); saveData();">I</button>
+    <button class="btn-format" style="text-decoration: underline;" onmousedown="event.preventDefault(); document.execCommand('underline'); saveData();">U</button>
+</div>
+
+<div class="footer-bar" id="footer-ui">
+    <div class="footer-info" id="word-count">0 PALAVRAS</div>
+</div>
+
+<script>
+    const ed = document.getElementById('editor');
+    const scrollArea = document.getElementById('scroll-area');
+    const wordCount = document.getElementById('word-count');
+    const footerUI = document.getElementById('footer-ui');
+    const toolbar = document.getElementById('toolbar');
+    const formatBar = document.getElementById('format-bar');
+    const sidebar = document.getElementById('sidebar');
+    const styleSidebar = document.getElementById('style-sidebar');
+    const chapterListUI = document.getElementById('chapter-list');
+    const overlay = document.getElementById('overlay');
+    
+    let db;
+    let currentChapterId = "main_buffer";
+    let initialViewportHeight = window.innerHeight;
+    let isReadingMode = false;
+    let pressTimer;
+
+    function initApp() {
+        initDB();
+        setTimeout(() => {
+            const splash = document.getElementById('splash');
+            splash.style.opacity = '0';
+            splash.style.visibility = 'hidden';
+            setTimeout(showUI, 200);
+        }, 800);
+    }
+
+    function exportBackupJSON() {
+        const tx = db.transaction(["chapters", "settings"], "readonly");
+        const chaptersStore = tx.objectStore("chapters");
+        const settingsStore = tx.objectStore("settings");
+        const backupData = { version: 1, date: Date.now(), chapters: [], settings: {} };
+        chaptersStore.getAll().onsuccess = (e) => {
+            backupData.chapters = e.target.result;
+            settingsStore.openCursor().onsuccess = (ev) => {
+                const cursor = ev.target.result;
+                if (cursor) { backupData.settings[cursor.key] = cursor.value; cursor.continue(); }
+                else {
+                    const blob = new Blob([JSON.stringify(backupData)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = `writer_pro_backup_${new Date().toISOString().slice(0,10)}.json`;
+                    document.body.appendChild(a); a.click();
+                    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+                }
+            };
+        };
+    }
+
+    function importBackupJSON(input) {
+        const file = input.files[0];
+        if (!file) return;
+        if (!confirm("Isso substituirá suas notas atuais. Deseja continuar?")) { input.value = ""; return; }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (!data.chapters) throw new Error("Formato inválido");
+                const tx = db.transaction(["chapters", "settings"], "readwrite");
+                const chaptersStore = tx.objectStore("chapters");
+                const settingsStore = tx.objectStore("settings");
+                chaptersStore.clear(); settingsStore.clear();
+                data.chapters.forEach(cap => chaptersStore.put(cap));
+                for (let key in data.settings) { settingsStore.put(data.settings[key], key); }
+                tx.oncomplete = () => { alert("Backup restaurado!"); location.reload(); };
+            } catch (err) { alert("Erro ao importar backup."); }
+        };
+        reader.readAsText(file);
+        input.value = "";
+    }
+
+    function toggleStyleSidebar() { if(document.activeElement === ed) ed.blur(); sidebar.classList.remove('open'); const isOpen = styleSidebar.classList.toggle('open'); overlay.classList.toggle('visible', isOpen); if(isOpen) footerUI.style.opacity = "0"; }
+    function toggleSidebar() { styleSidebar.classList.remove('open'); const isOpen = sidebar.classList.toggle('open'); overlay.classList.toggle('visible', isOpen); }
+    function closeAllUI() { sidebar.classList.remove('open'); styleSidebar.classList.remove('open'); overlay.classList.remove('visible'); if(!isKeyboardActive()) footerUI.style.opacity = "1"; }
+    
+    function applyStyle(prop, val) { ed.style[prop] = val; saveData(); }
+    
+    const isKeyboardActive = () => window.innerHeight < initialViewportHeight * 0.8;
+
+    function initDB() {
+        const req = indexedDB.open("WriterProShadowDB", 4);
+        req.onupgradeneeded = e => {
+            let d = e.target.result;
+            if (!d.objectStoreNames.contains("settings")) d.createObjectStore("settings");
+            if (!d.objectStoreNames.contains("chapters")) d.createObjectStore("chapters", { keyPath: "id" });
+        };
+        req.onsuccess = e => { db = e.target.result; loadChapters(); loadFromDB(); };
+    }
+
+    // CORREÇÃO JS: Garantindo que o evento de seleção seja cancelado no Modo de Leitura
+    ed.addEventListener('touchstart', (e) => { 
+        if (isReadingMode) {
+            // No modo de leitura, apenas o timer do modo funciona, o resto é bloqueado
+            pressTimer = setTimeout(() => { isReadingMode = !isReadingMode; updateReadingModeUI(); }, 1000);
+            return; 
+        }
+        pressTimer = setTimeout(() => { isReadingMode = !isReadingMode; updateReadingModeUI(); }, 1000); 
+    }, {passive: true});
+
+    ed.addEventListener('touchend', () => clearTimeout(pressTimer));
+    ed.addEventListener('touchmove', () => clearTimeout(pressTimer));
+
+    // CORREÇÃO: Previne menu de contexto (clique direito/toque longo) no modo leitura
+    ed.oncontextmenu = function(e) {
+        if (isReadingMode) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        }
+    };
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === "VolumeUp") { e.preventDefault(); isReadingMode = true; updateReadingModeUI(); }
+        else if (e.key === "VolumeDown") { e.preventDefault(); isReadingMode = false; updateReadingModeUI(); }
+    });
+
+    function updateReadingModeUI() {
+        if (isReadingMode) { 
+            hideUI(); 
+            ed.classList.add('reading-mode-active'); 
+            ed.setAttribute('contenteditable', 'false'); 
+            ed.blur(); 
+            window.getSelection().removeAllRanges(); // Limpa qualquer seleção residual
+        }
+        else { 
+            ed.classList.remove('reading-mode-active'); 
+            ed.setAttribute('contenteditable', 'true'); 
+            showUI(); 
+        }
+        ed.style.opacity = "0.7"; setTimeout(() => ed.style.opacity = "1", 200);
+    }
+
+    function loadChapters() {
+        const tx = db.transaction("chapters", "readonly");
+        tx.objectStore("chapters").getAll().onsuccess = (e) => {
+            const chapters = e.target.result;
+            if (chapters.length === 0) createNewChapter("Nota Inicial", true);
+            else renderChapterList(chapters);
+        };
+    }
+
+    function createNewChapter(title = "") {
+        const name = title || prompt("Título da Nota:") || "Sem título";
+        const id = "cap_" + Date.now();
+        const newCap = { id, title: name, content: "", lastUpdate: Date.now() };
+        const tx = db.transaction("chapters", "readwrite");
+        tx.objectStore("chapters").add(newCap);
+        tx.oncomplete = () => { if (title) switchChapter(id); else loadChapters(); };
+    }
+
+    function renderChapterList(chapters) {
+        chapterListUI.innerHTML = "";
+        chapters.sort((a,b) => b.lastUpdate - a.lastUpdate).forEach(cap => {
+            const div = document.createElement('div');
+            div.className = `chapter-item ${cap.id === currentChapterId ? 'active' : ''}`;
+            const titleSpan = document.createElement('span');
+            titleSpan.className = 'chapter-title-edit'; titleSpan.innerText = cap.title; titleSpan.contentEditable = "true";
+            titleSpan.onclick = (e) => e.stopPropagation();
+            titleSpan.onblur = () => updateChapterTitle(cap.id, titleSpan.innerText);
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-delete-cap'; delBtn.innerHTML = '✕';
+            delBtn.onclick = (e) => { e.stopPropagation(); deleteChapter(cap.id); };
+            div.onclick = () => switchChapter(cap.id);
+            div.appendChild(titleSpan); div.appendChild(delBtn);
+            chapterListUI.appendChild(div);
+        });
+    }
+
+    function deleteChapter(id) {
+        if (confirm("Deletar esta nota?")) {
+            const tx = db.transaction("chapters", "readwrite");
+            tx.objectStore("chapters").delete(id);
+            tx.oncomplete = () => {
+                db.transaction("chapters", "readonly").objectStore("chapters").getAll().onsuccess = e => {
+                    const rem = e.target.result;
+                    if (rem.length === 0) createNewChapter("Nota Inicial");
+                    else if (id === currentChapterId) switchChapter(rem[0].id);
+                    else loadChapters();
+                };
+            };
+        }
+    }
+
+    function updateChapterTitle(id, newTitle) {
+        const tx = db.transaction("chapters", "readwrite");
+        const store = tx.objectStore("chapters");
+        store.get(id).onsuccess = e => {
+            const data = e.target.result;
+            if (data && data.title !== newTitle) { data.title = newTitle || "Sem título"; store.put(data); }
+        };
+    }
+
+    function switchChapter(id) {
+        saveData();
+        currentChapterId = id;
+        const tx = db.transaction("chapters", "readonly");
+        tx.objectStore("chapters").get(id).onsuccess = e => {
+            const cap = e.target.result;
+            if (cap) { ed.innerHTML = cap.content || ""; scrollArea.scrollTop = 0; updateWordCount(); db.transaction("settings", "readwrite").objectStore("settings").put(id, "last_chapter_id"); loadChapters(); if (window.innerWidth < 700) closeAllUI(); }
+        };
+    }
+
+    function updateFormatUI() {
+        if (isReadingMode) return;
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0 && sel.toString().trim().length > 0 && document.activeElement === ed) {
+            const range = sel.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            let top = rect.top - 110; if (top < 10) { top = rect.bottom + 80; }
+            formatBar.style.top = top + "px"; formatBar.style.left = (rect.left + rect.width / 2) + "px";
+            formatBar.style.transform = "translateX(-50%)"; formatBar.classList.add('ui-visible');
+        } else { formatBar.classList.remove('ui-visible'); }
+    }
+    document.addEventListener('selectionchange', updateFormatUI);
+
+    function showUI() { if (isKeyboardActive() || isReadingMode) return; footerUI.classList.add('ui-visible'); toolbar.classList.remove('ui-hidden'); ed.classList.remove('full-space'); }
+    function hideUI() { footerUI.classList.remove('ui-visible'); toolbar.classList.add('ui-hidden'); if (isKeyboardActive() || isReadingMode) ed.classList.add('full-space'); formatBar.classList.remove('ui-visible'); }
+    scrollArea.addEventListener('scroll', () => { if (!isKeyboardActive() && !isReadingMode) showUI(); updateFormatUI(); });
+    ed.addEventListener('click', () => { if(!isKeyboardActive() && !isReadingMode) showUI(); });
+    function onTyping() { if (!isReadingMode) hideUI(); saveData(); }
+
+    window.addEventListener('resize', () => {
+        const k = isKeyboardActive();
+        if (k || isReadingMode) { hideUI(); footerUI.classList.add('keyboard-hidden'); ed.classList.add('full-space'); }
+        else { footerUI.classList.remove('keyboard-hidden'); showUI(); }
+        setTimeout(updateFormatUI, 100);
+    });
+
+    function saveData() {
+        if (!db || !currentChapterId) return;
+        const txCap = db.transaction("chapters", "readwrite");
+        const storeCap = txCap.objectStore("chapters");
+        storeCap.get(currentChapterId).onsuccess = e => {
+            const data = e.target.result;
+            if (data) { data.content = ed.innerHTML; data.lastUpdate = Date.now(); storeCap.put(data); }
+        };
+        const prefs = { 
+            fontFamily: ed.style.fontFamily, 
+            fontSize: ed.style.fontSize, 
+            textAlign: ed.style.textAlign, 
+            lineHeight: ed.style.lineHeight,
+            fontWeight: ed.style.fontWeight 
+        };
+        db.transaction("settings", "readwrite").objectStore("settings").put(prefs, "main_buffer");
+        updateWordCount();
+    }
+
+    function loadFromDB() {
+        const tx = db.transaction("settings", "readonly");
+        const store = tx.objectStore("settings");
+        store.get("main_buffer").onsuccess = e => {
+            const p = e.target.result;
+            if (p) { 
+                ed.style.fontFamily = p.fontFamily || "serif"; 
+                ed.style.fontSize = p.fontSize || "18px"; 
+                ed.style.textAlign = p.textAlign || "justify"; 
+                ed.style.lineHeight = p.lineHeight || "1.8";
+                ed.style.fontWeight = p.fontWeight || "400";
+            }
+        };
+        store.get("last_chapter_id").onsuccess = e => { if (e.target.result) switchChapter(e.target.result); };
+        store.get("custom_font_data").onsuccess = e => { if (e.target.result) { applyFontCSS(e.target.result.blob); updateFontMenu(e.target.result.name); } };
+    }
+
+    function handleFontUpload(input) {
+        const file = input.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            const fontObj = { name: file.name.split('.')[0], blob: e.target.result };
+            db.transaction("settings", "readwrite").objectStore("settings").put(fontObj, "custom_font_data");
+            applyFontCSS(fontObj.blob); updateFontMenu(fontObj.name); applyStyle('fontFamily', "'UserFont'");
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function applyFontCSS(blob) {
+        const id = 'dynamic-font-style'; let s = document.getElementById(id);
+        if (!s) { s = document.createElement('style'); s.id = id; document.head.appendChild(s); }
+        s.textContent = `@font-face { font-family: 'UserFont'; src: url('${blob}'); font-display: block; }`;
+    }
+
+    function updateFontMenu(name) {
+        const container = document.getElementById('custom-font-item');
+        if(container) container.innerHTML = `<div class="chapter-item" onmousedown="event.preventDefault(); applyStyle('fontFamily','\'UserFont\'')">${name}</div>`;
+    }
+
+    function updateWordCount() {
+        const t = ed.innerText || "";
+        const w = t.trim().split(/\s+/).filter(s => s.length > 0);
+        wordCount.innerText = w.length + " PALAVRAS";
+    }
+
+    function handlePaste(event) {
+        event.preventDefault();
+        const text = (event.originalEvent || event).clipboardData.getData('text/plain');
+        document.execCommand("insertText", false, text);
+    }
+
+    function exportDoc() {
+        const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'></head><body>";
+        const footer = "</body></html>";
+        const sourceHTML = header + ed.innerHTML + footer;
+        const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `texto_${Date.now()}.doc`;
+        document.body.appendChild(a); a.click();
+        setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+    }
+</script>
+</body>
+</html>
